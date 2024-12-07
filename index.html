@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة الحروف الهجائية</title>
+    <style>
+        body {
+            font-family: "Arial", sans-serif;
+            text-align: center;
+            direction: rtl;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 10px 0;
+        }
+        header h1 {
+            margin: 0;
+        }
+        .container {
+            display: flex;
+            justify-content: space-around;
+            margin: 50px auto;
+            max-width: 90%;
+        }
+        .words, .letters {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .item {
+            padding: 15px 20px;
+            border: 2px solid #555;
+            border-radius: 15px;
+            cursor: pointer;
+            background: linear-gradient(145deg, #ffffff, #e6e6e6);
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            transition: transform 0.2s, background-color 0.3s, box-shadow 0.3s;
+            box-shadow: 6px 6px 12px rgba(0, 0, 0, 0.2), -4px -4px 8px rgba(255, 255, 255, 0.7);
+        }
+        .item:hover {
+            transform: scale(1.1);
+            background-color: #f0f0f0;
+            box-shadow: 8px 8px 16px rgba(0, 0, 0, 0.3), -6px -6px 12px rgba(255, 255, 255, 0.8);
+        }
+        .item.dragging {
+            opacity: 0.5;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        footer {
+            margin-top: 20px;
+        }
+        .button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .designer {
+            margin-top: 30px;
+            color: #ff4500;
+            font-weight: bold;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>لعبة الحروف الهجائية - تصميم الطالب خليفة صلاح الفالح</h1>
+    </header>
+    <p>قم بتوصيل الكلمة بالحرف الصحيح باستخدام السحب والإفلات</p>
+    <div class="container">
+        <div class="words"></div>
+        <div class="letters"></div>
+    </div>
+    <canvas id="lineCanvas"></canvas>
+    <footer>
+        <button class="button" onclick="resetGame()">إعادة المسابقة</button>
+        <div class="designer">تصميم وإبداع: الطالب خليفة صلاح الفالح</div>
+    </footer>
+
+    <audio id="winSound" src="winSound.mp3"></audio>
+
+    <script>
+        const wordsContainer = document.querySelector('.words');
+        const lettersContainer = document.querySelector('.letters');
+        const canvas = document.getElementById('lineCanvas');
+        const ctx = canvas.getContext('2d');
+        const winSound = document.getElementById('winSound');
+
+        let startX, startY, endX, endY, currentWord;
+
+        // قائمة الحروف الهجائية والكلمات الخاصة بها
+        const allPairs = [
+            { word: "أسد", letter: "أ" },
+            { word: "بطة", letter: "ب" },
+            { word: "تفاحة", letter: "ت" },
+            { word: "ثعلب", letter: "ث" },
+            { word: "جمرة", letter: "ج" },
+            { word: "حصان", letter: "ح" },
+            { word: "دجاجة", letter: "د" },
+            { word: "ذئب", letter: "ذ" },
+            { word: "زرافة", letter: "ز" },
+            { word: "سمكة", letter: "س" },
+            { word: "شجرة", letter: "ش" },
+            { word: "صقر", letter: "ص" },
+            { word: "ضفدع", letter: "ض" },
+            { word: "طائرة", letter: "ط" },
+            { word: "ظبي", letter: "ظ" },
+            { word: "عصفور", letter: "ع" },
+            { word: "غزال", letter: "غ" },
+            { word: "فيل", letter: "ف" },
+            { word: "قلم", letter: "ق" },
+            { word: "كلب", letter: "ك" },
+            { word: "ليمون", letter: "ل" },
+            { word: "موز", letter: "م" },
+            { word: "نمر", letter: "ن" },
+            { word: "هدهد", letter: "ه" },
+            { word: "وردة", letter: "و" },
+            { word: "يد", letter: "ي" }
+        ];
+
+        let remainingPairs = [...allPairs];
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function initializeGame() {
+            wordsContainer.innerHTML = '';
+            lettersContainer.innerHTML = '';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // توليد 5 كلمات عشوائية في كل جولة
+            if (remainingPairs.length < 5) {
+                remainingPairs = [...allPairs];
+            }
+
+            const currentPairs = shuffle(remainingPairs).slice(0, 5);
+            remainingPairs = remainingPairs.filter(pair => !currentPairs.includes(pair));
+
+            const shuffledLetters = shuffle(currentPairs.map(pair => pair.letter));
+
+            currentPairs.forEach(pair => {
+                const wordElement = document.createElement('div');
+                wordElement.classList.add('item');
+                wordElement.textContent = pair.word;
+                wordElement.setAttribute('data-match', pair.letter);
+                wordElement.setAttribute('draggable', 'true');
+                wordsContainer.appendChild(wordElement);
+            });
+
+            shuffledLetters.forEach(letter => {
+                const letterElement = document.createElement('div');
+                letterElement.classList.add('item');
+                letterElement.textContent = letter;
+                letterElement.setAttribute('data-letter', letter);
+                lettersContainer.appendChild(letterElement);
+            });
+
+            setupDragAndDrop();
+        }
+
+        function setupDragAndDrop() {
+            const words = document.querySelectorAll('.words .item');
+            const letters = document.querySelectorAll('.letters .item');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', (e) => handleStart(e, word));
+                word.addEventListener('touchstart', (e) => handleStart(e, word));
+            });
+
+            letters.forEach(letter => {
+                letter.addEventListener('dragover', (e) => e.preventDefault());
+                letter.addEventListener('drop', (e) => handleEnd(e, letter));
+                letter.addEventListener('touchend', (e) => handleEnd(e, letter));
+            });
+        }
+
+        function handleStart(event, word) {
+            currentWord = word;
+            const rect = word.getBoundingClientRect();
+            startX = rect.right - 10;
+            startY = rect.top + rect.height / 2;
+        }
+
+        function handleEnd(event, letter) {
+            const rect = letter.getBoundingClientRect();
+            endX = rect.left + 10;
+            endY = rect.top + rect.height / 2;
+
+            if (currentWord.dataset.match === letter.dataset.letter) {
+                drawLine(startX, startY, endX, endY);
+                currentWord.style.backgroundColor = "#c8e6c9";
+                letter.style.backgroundColor = "#c8e6c9";
+                checkWin();
+            } else {
+                alert("خطأ! حاول مرة أخرى.");
+            }
+        }
+
+        function drawLine(x1, y1, x2, y2) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = "#007bff";
+            ctx.lineWidth = 5;
+            ctx.stroke();
+        }
+
+        function checkWin() {
+            const words = document.querySelectorAll('.words .item');
+            const allMatched = [...words].every(word => word.style.backgroundColor === 'rgb(200, 230, 201)');
+            if (allMatched) {
+                setTimeout(() => {
+                    winSound.play();
+                    alert('تهانينا! تم إكمال الجولة بنجاح.');
+                    initializeGame();
+                }, 200);
+            }
+        }
+
+        function resetGame() {
+            initializeGame();
+        }
+
+        // Initialize game on load
+        initializeGame();
+    </script>
+</body>
+</html>
